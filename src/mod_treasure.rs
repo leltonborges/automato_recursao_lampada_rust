@@ -1,79 +1,85 @@
 pub mod treasure {
-    use std::collections::VecDeque;
+    use std::collections::{BTreeSet, HashSet};
 
-    use rand::{Rng, thread_rng};
+    use rand::seq::IteratorRandom;
 
-    use ContextPosition;
-    use TypeObstacle::{DEAD, FREE, OBSTACLE, TREASURE};
-    use ObstacleRule;
+    use TypeObstacle::{DEAD, FREE, HINT, OBSTACLE, TREASURE};
+
+    use crate::mod_structure::structure::{ContextPosition, HintRule};
     use crate::mod_structure::structure::*;
 
     type BoardVec = Vec<Vec<ContextPosition>>;
-    type VisitedVec = Vec<Vec<bool>>;
 
     static MOVEMENTS: [(isize, isize); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
 
     pub fn setup() {
-        let p_free = ContextPosition::new(FREE, Box::new(NoneRule));
-        let p_dead = ContextPosition::new(DEAD, Box::new(NoneRule));
-        let p_obstacle = ContextPosition::new(OBSTACLE, Box::new(RegressMoveRule));
-        let p_treasure = ContextPosition::new(TREASURE, Box::new(NoneRule));
+        let hint_north_east = HintRule::new(vec![(-1, 0), (0, 1)], 2);
+        let hint_north = HintRule::new(vec![(-1, 0)], 2);
+        let hint_east = HintRule::new(vec![(0, 1)], 2);
 
-        let start: (usize, usize) = (4, 0);
+        let p_hint_north_east = ContextPosition::new(HINT(hint_north_east));
+        let p_hint_north = ContextPosition::new(HINT(hint_north));
+        let p_hint_east = ContextPosition::new(HINT(hint_east));
+        let p_free = ContextPosition::new(FREE);
+        let p_dead = ContextPosition::new(DEAD);
+        let p_obstacle = ContextPosition::new(OBSTACLE);
+        let p_treasure = ContextPosition::new(TREASURE);
 
         let treasure_map: BoardVec = vec![
-            vec![p_free.clone(), p_free.clone(), p_treasure.clone(), p_free.clone()],
-            vec![p_free.clone(), p_dead.clone(), p_free.clone(), p_free.clone()],
-            vec![p_free.clone(), p_free.clone(), p_dead.clone(), p_free.clone()],
-            vec![p_free.clone(), p_free.clone(), p_free.clone(), p_free.clone()],
-            vec![p_free.clone(), p_obstacle.clone(), p_free.clone(), p_obstacle.clone()],
+            vec![p_dead.clone(), p_free.clone(), p_hint_east.clone(), p_hint_east.clone(), p_treasure.clone()],
+            vec![p_free.clone(), p_obstacle.clone(), p_hint_north_east.clone(), p_dead.clone(), p_free.clone()],
+            vec![p_free.clone(), p_free.clone(), p_hint_north_east.clone(), p_hint_north_east.clone(), p_free.clone()],
+            vec![p_free.clone(), p_obstacle.clone(), p_free.clone(), p_hint_north, p_obstacle.clone()],
+            vec![p_free.clone(), p_free.clone(), p_free.clone(), p_free.clone(), p_free.clone()],
         ];
 
-        let (shortest, paths) = search_for_treasure(&treasure_map, start);
-        if let Some(short) = shortest {
-            println!("Menor caminho ${:?}", short);
-        }
+        let mut paths = BTreeSet::new();
+        let start: (usize, usize) = (treasure_map.len() - 1, 0);
+        let mut visited = HashSet::new();
+        search_paths(&treasure_map, start, &mut Vec::new(), &mut paths, &mut visited);
 
         for path in paths {
-            println!("Caminhos: ${:?}", path);
+            println!("Path: {:?}", path);
         }
     }
 
-    fn search_for_treasure(matrix: &BoardVec, start: (usize, usize)) -> (Option<(Vec<(usize, usize)>)>,
-                                                                         Vec<Vec<(usize, usize)>>) {
-        let mut queue = VecDeque::new();
-        let mut paths: Vec<Vec<(usize, usize)>> = Vec::new();
-        let mut shortest_path: Vec<(usize, usize)> = Vec::new();
-        let mut is_visited = vec![vec![false; matrix[0].len()]; matrix.len()];
+    fn search_paths(
+        matrix: &BoardVec,
+        (x, y): (usize, usize),
+        current_path: &mut Vec<(usize, usize)>,
+        paths: &mut BTreeSet<Vec<(usize, usize)>>,
+        visited: &mut HashSet<(usize, usize)>,
+    ) {
+        if x >= matrix.len() || y >= matrix[0].len() || visited.contains(&(x, y)) || matches!(&matrix[x][y].obstacle, OBSTACLE) {
+            return;
+        }
 
-        queue.push_back((start, vec![start]));
-        is_visited[start.0][start.1] = true;
+        visited.insert((x, y));
+        current_path.push((x, y));
 
-        while let Some((pos, path)) = queue.pop_front() {
-            if matrix[pos.0][pos.1].obstacle == TREASURE {
-                paths.push(path.clone());
-                if shortest_path.is_empty() || path.len() < shortest_path.len() {
-                    shortest_path = path.clone();
-                }
+        match &matrix[x][y].obstacle {
+            DEAD => {}
+            TREASURE => {
+                paths.insert(current_path.clone());
             }
+            _ => {
+                let next_moves = match &matrix[x][y].obstacle {
+                    HINT(hint_rule) => hint_rule.directions.clone(),
+                    _ => MOVEMENTS.to_vec(),
+                };
 
-            for (dx, dy) in MOVEMENTS.iter() {
-                let nx = (pos.0 as isize + dx) as usize;
-                let ny = (pos.1 as isize + dy) as usize;
 
-                if nx < matrix.len() && ny < matrix[0].len() && matrix[nx][ny].obstacle != OBSTACLE && !is_visited[nx][ny] {
-                    let mut new_path = path.clone();
-                    new_path.push((nx, ny));
-                    queue.push_back(((nx, ny), new_path));
-                    is_visited[nx][ny] = true;
+                let mut rng = rand::thread_rng();
+                for &(dx, dy) in next_moves.iter().choose_multiple(&mut rng, next_moves.len()) {
+                    let new_x = (x as isize + dx) as usize;
+                    let new_y = (y as isize + dy) as usize;
+                    if new_x < matrix.len() && new_y < matrix[0].len() {
+                        search_paths(matrix, (new_x, new_y), current_path, paths, visited);
+                    }
                 }
             }
         }
-
-        if !paths.is_empty() {
-            (Some(shortest_path), paths)
-        } else {
-            (None, Vec::new())
-        }
+        visited.remove(&(x, y));
+        current_path.pop();
     }
 }
