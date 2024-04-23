@@ -13,9 +13,9 @@ pub mod treasure {
     static MOVEMENTS: [(isize, isize); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
 
     pub fn setup() {
-        let hint_north_east = HintRule::new(vec![(-1, 0), (0, 1)], 2);
-        let hint_north = HintRule::new(vec![(-1, 0)], 2);
-        let hint_east = HintRule::new(vec![(0, 1)], 2);
+        let hint_north_east = HintRule::new(vec![(-1, 0), (0, 1)], 1);
+        let hint_north = HintRule::new(vec![(-1, 0)], 1);
+        let hint_east = HintRule::new(vec![(0, 1)], 1);
 
         let p_hint_north_east = ContextPosition::new(HINT(hint_north_east));
         let p_hint_north = ContextPosition::new(HINT(hint_north));

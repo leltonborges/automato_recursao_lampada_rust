@@ -1,4 +1,9 @@
 pub mod structure {
+   #[derive(Debug, Clone, PartialEq)]
+enum CellContent {
+    Mine,
+    Number(u8),
+}
     #[derive(Clone, Eq, PartialEq)]
     pub struct HintRule {
         pub directions: Vec<(isize, isize)>,
@@ -9,7 +14,6 @@ pub mod structure {
     pub struct ContextPosition {
         pub obstacle: TypeObstacle,
     }
-
 
     #[derive(Eq, PartialEq, Clone)]
     pub enum TypeObstacle {
